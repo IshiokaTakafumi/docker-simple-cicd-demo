@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   web-test-build-image:
-    name: web Container - Test and Build
+    name: Web Container - Test and Build
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     defaults:
@@ -97,26 +97,39 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Fill in the new image ID in the Amazon ECS task definition for web
-        id: render-web-task-def
+      #  イメージ文字列を事前に環境変数に代入
+      - name: Set environment variables for debug
+        run: |
+          echo "ECR_REGISTRY=${{ steps.login-ecr.outputs.registry }}" >> $GITHUB_ENV
+          echo "WEB_REPO=${{ secrets.AWS_ECR_WEB_SERVER_REPOSITORY }}" >> $GITHUB_ENV
+          echo "API_REPO=${{ secrets.AWS_ECR_API_SERVER_REPOSITORY }}" >> $GITHUB_ENV
+
+      #  デバッグ出力（強制的に出力される）
+      - name: Debug image names
+        run: |
+          echo "Web image: $ECR_REGISTRY/$WEB_REPO:latest"
+          echo "API image: $ECR_REGISTRY/$API_REPO:latest"
+
+      - name: Replace image for web container
+        id: render-web
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
           task-definition: ${{ env.ECS_TASK_DEFINITION }}
           container-name: web
           image: ${{ steps.login-ecr.outputs.registry }}/${{ secrets.AWS_ECR_WEB_SERVER_REPOSITORY }}:latest
 
-      - name: Fill in the new image ID in the Amazon ECS task definition for api
-        id: render-api-task-def
+      - name: Replace image for api container
+        id: render-api
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          task-definition: ${{ env.ECS_TASK_DEFINITION }}
+          task-definition: ${{ steps.render-web.outputs.task-definition }}
           container-name: api
           image: ${{ steps.login-ecr.outputs.registry }}/${{ secrets.AWS_ECR_API_SERVER_REPOSITORY }}:latest
 
       - name: Deploy Amazon ECS task Definition
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
-          task-definition: ${{ steps.render-api-task-def.outputs.task-definition }}
+          task-definition: ${{ steps.render-api.outputs.task-definition }}
           service: ${{ env.ECS_SERVICE }}
           cluster: ${{ env.ECS_CLUSTER }}
           wait-for-service-stability: true
