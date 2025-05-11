@@ -1,0 +1,30 @@
+version: '3.9'
+services:
+  api:
+    container_name: api
+    build: ./api
+    ports:
+      - 8080:8080
+    tty: true
+    volumes:
+      - ./api:/workspace:cached
+
+  web:
+    container_name: web
+    build:
+      context: ./web
+      target: base
+    ports:
+      - 3000:3000
+    environment:
+     - REACT_APP_API_SERVER=http://160.16.213.23:8080/api
+    tty: true
+    volumes:
+      - ./web:/workspace:chaced
+    depends_on:
+      - api
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 512M
